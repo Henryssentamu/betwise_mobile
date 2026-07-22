@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "BetWise",
+    "slug": "betwise-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "betwise",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0E1416",
+    "splash": {
+      "backgroundColor": "#0E1416",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.betwise.mobile"
+    },
+    "android": {
+      "package": "com.betwise.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1416"
+      }
+    },
+    "plugins": ["expo-router"],
+    "extra": {
+      "apiBaseUrl": "http://localhost:8000/api"
+    }
+  }
+}

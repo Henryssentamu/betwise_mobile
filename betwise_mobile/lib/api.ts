@@ -1,0 +1,292 @@
+import axios, { AxiosInstance } from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  (Constants.expoConfig?.extra?.apiBaseUrl as string) ||
+  "http://localhost:8000/api";
+
+export interface SignupPayload {
+  username: string;
+  email: string;
+  password: string;
+  date_of_birth: string;
+  national_id_number: string;
+  default_risk_appetite?: "low" | "medium" | "high";
+}
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  is_age_verified: boolean;
+  default_risk_appetite: "low" | "medium" | "high";
+  created_at: string;
+}
+
+export interface SubscriptionPlan {
+  id: number;
+  name: string;
+  tier: "casual" | "pro";
+  billing_cycle: "monthly" | "seasonal";
+  price_ugx: string;
+  features: string[];
+  is_active: boolean;
+}
+
+export interface League {
+  id: number;
+  name: string;
+  country: string;
+  is_active: boolean;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  short_name: string;
+  logo_url: string;
+  current_form_score: number;
+}
+
+export interface Match {
+  id: number;
+  league: League;
+  home_team: Team;
+  away_team: Team;
+  kickoff_at: string;
+  status: "scheduled" | "live" | "finished" | "postponed";
+  home_score: number | null;
+  away_score: number | null;
+  result: "" | "home_win" | "away_win" | "draw";
+}
+
+export interface MatchDetail extends Match {
+  head_to_head: {
+    matches_considered: number;
+    team_a_wins: number;
+    team_b_wins: number;
+    draws: number;
+  } | null;
+  home_team_news: Array<{ id: number; player_name: string; severity: string; note: string }>;
+  away_team_news: Array<{ id: number; player_name: string; severity: string; note: string }>;
+}
+
+export interface Recommendation {
+  id: number;
+  match: Match;
+  bet_type: string;
+  risk_tier: "low" | "medium" | "high";
+  confidence_score: number;
+  suggested_odds_min: number;
+  suggested_odds_max: number;
+  reasoning_summary: string;
+  outcome: "pending" | "hit" | "missed";
+  generated_at: string;
+}
+
+export interface WeeklyTarget {
+  id: number;
+  week_number: number;
+  week_starts_on: string;
+  target_stake_ugx: string;
+  target_odds_to_chase: number;
+  actual_invested_ugx: string;
+  actual_earned_ugx: string;
+}
+
+export interface SeasonPlan {
+  id: number;
+  starts_on: string;
+  ends_on: string;
+  total_budget_ugx: string;
+  target_earnings_ugx: string;
+  risk_appetite: "low" | "medium" | "high";
+  is_active: boolean;
+  weekly_targets: WeeklyTarget[];
+}
+
+export interface PaceSummary {
+  weeks_elapsed: number;
+  total_weeks: number;
+  total_invested_ugx: string;
+  total_earned_ugx: string;
+  net_ugx: string;
+  expected_net_by_now_ugx: string;
+  pace_status: "ahead" | "on_track" | "behind";
+  course_correction_message: string | null;
+}
+
+export interface BettingPartner {
+  id: number;
+  name: string;
+  highlight_note: string;
+  website_url: string;
+  rank_order: number;
+}
+
+const ACCESS_KEY = "betwise_access_token";
+const REFRESH_KEY = "betwise_refresh_token";
+
+class APIClient {
+  private client: AxiosInstance;
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
+  private ready: Promise<void>;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: API_BASE_URL,
+      headers: { "Content-Type": "application/json" },
+    });
+
+    this.ready = this.hydrate();
+
+    this.client.interceptors.request.use(async (config) => {
+      await this.ready;
+      return config;
+    });
+
+    this.client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        if (error.response?.status === 401 && this.refreshToken) {
+          try {
+            const res = await axios.post(API_BASE_URL + "/auth/token/refresh/", {
+              refresh: this.refreshToken,
+            });
+            await this.setTokens(res.data.access, this.refreshToken);
+            error.config.headers.Authorization = "Bearer " + res.data.access;
+            return this.client(error.config);
+          } catch {
+            await this.clearTokens();
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  private async hydrate() {
+    const [access, refresh] = await Promise.all([
+      AsyncStorage.getItem(ACCESS_KEY),
+      AsyncStorage.getItem(REFRESH_KEY),
+    ]);
+    this.accessToken = access;
+    this.refreshToken = refresh;
+    if (access) this.setAuthHeader();
+  }
+
+  private setAuthHeader() {
+    if (this.accessToken) {
+      this.client.defaults.headers.common["Authorization"] = "Bearer " + this.accessToken;
+    }
+  }
+
+  async setTokens(access: string, refresh: string) {
+    this.accessToken = access;
+    this.refreshToken = refresh;
+    await AsyncStorage.setItem(ACCESS_KEY, access);
+    await AsyncStorage.setItem(REFRESH_KEY, refresh);
+    this.setAuthHeader();
+  }
+
+  async clearTokens() {
+    this.accessToken = null;
+    this.refreshToken = null;
+    await AsyncStorage.removeItem(ACCESS_KEY);
+    await AsyncStorage.removeItem(REFRESH_KEY);
+    delete this.client.defaults.headers.common["Authorization"];
+  }
+
+  async waitUntilReady() {
+    await this.ready;
+  }
+
+  isAuthenticated() {
+    return !!this.accessToken;
+  }
+
+  signup(payload: SignupPayload) {
+    return this.client.post<{ access: string; refresh: string; profile: UserProfile }>(
+      "/auth/signup/",
+      payload
+    );
+  }
+
+  login(payload: LoginPayload) {
+    return this.client.post<{ access: string; refresh: string }>("/auth/login/", payload);
+  }
+
+  getProfile() {
+    return this.client.get<UserProfile>("/auth/me/");
+  }
+
+  getSubscriptionPlans() {
+    return this.client.get<{ results: SubscriptionPlan[] } | SubscriptionPlan[]>("/auth/plans/");
+  }
+
+  getUpcomingMatches() {
+    return this.client.get<{ results: Match[] } | Match[]>("/matches/upcoming/");
+  }
+
+  getMatchDetail(id: number) {
+    return this.client.get<MatchDetail>("/matches/" + id + "/");
+  }
+
+  getRecommendations(filters?: Record<string, string>) {
+    return this.client.get<{ results: Recommendation[] } | Recommendation[]>("/recommendations/", {
+      params: filters,
+    });
+  }
+
+  getBettingPartners() {
+    return this.client.get<{ results: BettingPartner[] } | BettingPartner[]>("/betting-partners/");
+  }
+
+  createSeasonPlan(payload: {
+    starts_on: string;
+    ends_on: string;
+    total_budget_ugx: number;
+    target_earnings_ugx: number;
+    risk_appetite: "low" | "medium" | "high";
+  }) {
+    return this.client.post<SeasonPlan>("/season-plans/", payload);
+  }
+
+  getActiveSeasonPlan() {
+    return this.client.get<SeasonPlan>("/season-plans/active/");
+  }
+
+  getPaceDashboard() {
+    return this.client.get<PaceSummary>("/season-plans/active/pace/");
+  }
+
+  validatePromoCode(payload: { code: string; plan_id: number }) {
+    return this.client.post("/promo-codes/validate/", payload);
+  }
+
+  checkout(payload: { plan_id: number; promo_code?: string }) {
+    return this.client.post<{ merchant_reference: string; redirect_url: string }>(
+      "/checkout/",
+      payload
+    );
+  }
+
+  logBet(payload: { recommendation?: number; stake_ugx: number; odds_taken: number; note?: string }) {
+    return this.client.post("/bet-logs/", payload);
+  }
+}
+
+export const apiClient = new APIClient();
+
+export function unwrapList<T>(data: { results: T[] } | T[]): T[] {
+  if (Array.isArray(data)) return data;
+  return data.results ?? [];
+}

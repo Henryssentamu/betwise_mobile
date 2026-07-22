@@ -1,0 +1,333 @@
+import { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from "react-native";
+import { useFocusEffect } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { Check, Tag } from "lucide-react-native";
+import { apiClient, SubscriptionPlan, unwrapList } from "../../lib/api";
+import { colors, fonts, radius } from "../../lib/colors";
+import { fmtUGX } from "../../lib/formatting";
+import LoadingSpinner from "../../components/LoadingSpinner";
+
+export default function Pricing() {
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoResult, setPromoResult] = useState<{
+    valid: boolean;
+    discounted_price_ugx: number;
+    original_price_ugx: number;
+  } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      apiClient
+        .getSubscriptionPlans()
+        .then((res) => setPlans(unwrapList(res.data)))
+        .finally(() => setLoading(false));
+    }, [])
+  );
+
+  const selectPlan = (plan: SubscriptionPlan) => {
+    setSelectedPlan(plan);
+    setPromoResult(null);
+    setPromoCode("");
+    setCheckoutError(null);
+  };
+
+  const handleValidatePromo = async () => {
+    if (!selectedPlan || !promoCode.trim()) return;
+    setValidating(true);
+    setPromoError(null);
+    setPromoResult(null);
+    try {
+      const res: any = await apiClient.validatePromoCode({
+        code: promoCode.trim(),
+        plan_id: selectedPlan.id,
+      });
+      setPromoResult(res.data);
+    } catch (err: any) {
+      setPromoError(err?.response?.data?.detail || "That promo code isn't valid.");
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (!selectedPlan) return;
+    setCheckingOut(true);
+    setCheckoutError(null);
+    try {
+      const res = await apiClient.checkout({
+        plan_id: selectedPlan.id,
+        promo_code: promoResult?.valid ? promoCode.trim() : undefined,
+      });
+      await WebBrowser.openBrowserAsync(res.data.redirect_url);
+    } catch (err: any) {
+      setCheckoutError(err?.response?.data?.detail || "Checkout failed. Please try again.");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
+
+  if (loading) return <LoadingSpinner label="Loading plans" />;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <Text style={styles.eyebrow}>SUBSCRIPTION</Text>
+      <Text style={styles.title}>Choose your plan</Text>
+
+      <View style={{ gap: 12, marginBottom: 24 }}>
+        {plans.map((plan) => {
+          const active = selectedPlan?.id === plan.id;
+          return (
+            <Pressable
+              key={plan.id}
+              onPress={() => selectPlan(plan)}
+              style={[styles.planCard, active && styles.planCardActive]}
+            >
+              <Text style={styles.eyebrow}>{plan.tier.toUpperCase()}</Text>
+              <Text style={styles.planName}>{plan.name}</Text>
+              <Text style={styles.planPrice}>{fmtUGX(plan.price_ugx)}</Text>
+              <Text style={styles.planCycle}>
+                per {plan.billing_cycle === "monthly" ? "month" : "season"}
+              </Text>
+              <View style={{ marginTop: 10, gap: 5 }}>
+                {(plan.features || []).map((f, i) => (
+                  <View key={i} style={styles.featureRow}>
+                    <Check size={12} color={colors.riskLow} />
+                    <Text style={styles.featureText}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {selectedPlan && (
+        <View style={styles.checkoutCard}>
+          <Text style={styles.checkoutTitle}>Checkout — {selectedPlan.name}</Text>
+
+          <View style={styles.promoRow}>
+            <View style={styles.promoInputWrap}>
+              <Tag size={14} color={colors.inkFaint} style={{ marginLeft: 12 }} />
+              <TextInput
+                value={promoCode}
+                onChangeText={setPromoCode}
+                placeholder="Promo code"
+                placeholderTextColor={colors.inkFaint}
+                autoCapitalize="characters"
+                style={styles.promoInput}
+              />
+            </View>
+            <Pressable
+              onPress={handleValidatePromo}
+              disabled={validating || !promoCode.trim()}
+              style={[styles.applyButton, (!promoCode.trim() || validating) && { opacity: 0.5 }]}
+            >
+              <Text style={styles.applyButtonText}>{validating ? "Checking…" : "Apply"}</Text>
+            </Pressable>
+          </View>
+
+          {promoError && <Text style={styles.promoErrorText}>{promoError}</Text>}
+
+          {promoResult?.valid ? (
+            <View style={styles.priceBox}>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Original price</Text>
+                <Text style={styles.priceOriginal}>{fmtUGX(promoResult.original_price_ugx)}</Text>
+              </View>
+              <View style={styles.priceRow}>
+                <Text style={[styles.priceLabel, { color: colors.riskLow }]}>Your price</Text>
+                <Text style={[styles.priceFinal, { color: colors.riskLow }]}>
+                  {fmtUGX(promoResult.discounted_price_ugx)}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Total</Text>
+              <Text style={styles.priceFinal}>{fmtUGX(selectedPlan.price_ugx)}</Text>
+            </View>
+          )}
+
+          {checkoutError && <Text style={styles.promoErrorText}>{checkoutError}</Text>}
+
+          <Pressable
+            style={[styles.payButton, checkingOut && { opacity: 0.6 }]}
+            onPress={handleCheckout}
+            disabled={checkingOut}
+          >
+            <Text style={styles.payButtonText}>
+              {checkingOut ? "Redirecting to Pesapal…" : "Pay with Pesapal"}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 40,
+  },
+  eyebrow: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    color: colors.inkFaint,
+  },
+  title: {
+    fontFamily: fonts.display,
+    fontSize: 32,
+    color: colors.inkPaper,
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  planCard: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    padding: 18,
+  },
+  planCardActive: {
+    borderColor: colors.ticker,
+  },
+  planName: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    color: colors.inkPaper,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  planPrice: {
+    fontFamily: fonts.mono,
+    fontSize: 22,
+    color: colors.ticker,
+  },
+  planCycle: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.inkFaint,
+    marginBottom: 4,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  featureText: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkMuted,
+  },
+  checkoutCard: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    padding: 18,
+  },
+  checkoutTitle: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: colors.inkPaper,
+    marginBottom: 14,
+  },
+  promoRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+  },
+  promoInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+  },
+  promoInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkPaper,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  applyButton: {
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+  },
+  applyButtonText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+  },
+  promoErrorText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.riskHigh,
+    marginBottom: 10,
+  },
+  priceBox: {
+    backgroundColor: colors.riskLow + "1A",
+    borderWidth: 1,
+    borderColor: colors.riskLow + "4D",
+    borderRadius: radius.stub,
+    padding: 14,
+    marginBottom: 14,
+    gap: 4,
+  },
+  priceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  priceLabel: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+  },
+  priceOriginal: {
+    fontFamily: fonts.mono,
+    fontSize: 13,
+    color: colors.inkFaint,
+    textDecorationLine: "line-through",
+  },
+  priceFinal: {
+    fontFamily: fonts.mono,
+    fontSize: 15,
+    color: colors.inkPaper,
+  },
+  payButton: {
+    backgroundColor: colors.ticker,
+    borderRadius: radius.stub,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  payButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 15,
+    color: colors.bg,
+  },
+});

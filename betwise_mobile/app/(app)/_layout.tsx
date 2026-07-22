@@ -1,0 +1,81 @@
+import { Tabs, Redirect } from "expo-router";
+import { LayoutDashboard, TrendingUp, Users, CreditCard } from "lucide-react-native";
+import { useAuthStore } from "../../lib/store";
+import { colors, fonts } from "../../lib/colors";
+import LoadingSpinner from "../../components/LoadingSpinner";
+import { View } from "react-native";
+
+export default function AppLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <LoadingSpinner label="Loading BetWise" />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect href="/login" />;
+  }
+
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: colors.panel,
+          borderTopColor: colors.hairline,
+          borderTopWidth: 1,
+          height: 84,
+          paddingTop: 8,
+          paddingBottom: 24,
+        },
+        tabBarActiveTintColor: colors.ticker,
+        tabBarInactiveTintColor: colors.inkFaint,
+        tabBarLabelStyle: {
+          fontFamily: fonts.mono,
+          fontSize: 10,
+          letterSpacing: 0.4,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "OVERVIEW",
+          tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size - 2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="recommendations/index"
+        options={{
+          title: "PICKS",
+          tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size - 2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="partners"
+        options={{
+          title: "PARTNERS",
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size - 2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="pricing"
+        options={{
+          title: "PLANS",
+          tabBarIcon: ({ color, size }) => <CreditCard color={color} size={size - 2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="recommendations/[id]"
+        options={{
+          href: null,
+        }}
+      />
+    </Tabs>
+  );
+}
