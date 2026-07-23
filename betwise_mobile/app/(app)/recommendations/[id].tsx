@@ -2,11 +2,22 @@ import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useLocalSearchParams, useFocusEffect, useRouter } from "expo-router";
 import { ArrowLeft, AlertTriangle } from "lucide-react-native";
-import { apiClient, MatchDetail as MatchDetailType } from "../../../lib/api";
+import { apiClient, MatchDetail as MatchDetailType, Recommendation, unwrapList } from "../../../lib/api";
 import { colors, fonts, radius } from "../../../lib/colors";
 import { fmtKickoffLong } from "../../../lib/formatting";
 import LoadingSpinner from "../../../components/LoadingSpinner";
 import SimpleBarChart from "../../../components/SimpleBarChart";
+import LogBetForm from "../../../components/LogBetForm";
+import RiskBadge from "../../../components/RiskBadge";
+
+const BET_TYPE_LABEL: Record<string, string> = {
+  home_win: "Home win",
+  away_win: "Away win",
+  draw: "Draw",
+  corners: "Corners",
+  btts: "Both teams to score",
+  over_under: "Over/Under",
+};
 
 const SEVERITY_META: Record<string, { label: string; color: string }> = {
   minor: { label: "Minor knock", color: colors.riskLow },
@@ -18,6 +29,7 @@ export default function MatchDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [match, setMatch] = useState<MatchDetailType | null>(null);
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,10 +37,13 @@ export default function MatchDetail() {
     useCallback(() => {
       if (!id) return;
       setLoading(true);
-      apiClient
-        .getMatchDetail(Number(id))
-        .then((res) => {
-          setMatch(res.data);
+      Promise.all([
+        apiClient.getMatchDetail(Number(id)),
+        apiClient.getRecommendations({ match: id }),
+      ])
+        .then(([matchRes, recRes]) => {
+          setMatch(matchRes.data);
+          setRecommendation(unwrapList(recRes.data)[0] ?? null);
           setError(null);
         })
         .catch(() => setError("Couldn't load this match."))
@@ -74,6 +89,35 @@ export default function MatchDetail() {
         {match.away_team.name}
       </Text>
       <Text style={styles.kickoff}>{fmtKickoffLong(match.kickoff_at)}</Text>
+
+      {recommendation && (
+        <View style={styles.card}>
+          <View style={styles.pickHeaderRow}>
+            <Text style={styles.eyebrow}>THE PICK</Text>
+            <RiskBadge tier={recommendation.risk_tier} size="sm" />
+          </View>
+          <Text style={styles.pickType}>
+            {BET_TYPE_LABEL[recommendation.bet_type] ?? recommendation.bet_type}
+            <Text style={styles.pickOdds}>
+              {"  "}
+              {recommendation.suggested_odds_min.toFixed(2)}–{recommendation.suggested_odds_max.toFixed(2)}
+            </Text>
+          </Text>
+          <Text style={styles.pickReasoning}>{recommendation.reasoning_summary}</Text>
+          <View style={styles.pickDivider}>
+            <Text style={styles.pickHint}>
+              Placed this bet with a bookmaker? Log it to track it against your plan.
+            </Text>
+            <LogBetForm
+              recommendationId={recommendation.id}
+              suggestedOdds={{
+                min: recommendation.suggested_odds_min,
+                max: recommendation.suggested_odds_max,
+              }}
+            />
+          </View>
+        </View>
+      )}
 
       {h2h && (
         <View style={styles.card}>
@@ -192,6 +236,41 @@ const styles = StyleSheet.create({
     borderRadius: radius.stub,
     padding: 16,
     marginBottom: 16,
+  },
+  pickHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  pickType: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    color: colors.inkPaper,
+    marginBottom: 4,
+  },
+  pickOdds: {
+    fontFamily: fonts.mono,
+    fontSize: 13,
+    color: colors.inkFaint,
+  },
+  pickReasoning: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  pickDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    paddingTop: 14,
+  },
+  pickHint: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.inkFaint,
+    marginBottom: 10,
   },
   formRow: {
     flexDirection: "row",
