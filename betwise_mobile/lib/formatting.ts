@@ -14,6 +14,15 @@ export function fmtKickoff(iso: string) {
   return datePart + " · " + timePart;
 }
 
+export function fmtDateOnly(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function fmtKickoffLong(iso: string) {
   const d = new Date(iso);
   const datePart = d.toLocaleDateString(undefined, {

@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from "react-native";
 import { useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { Check, Tag } from "lucide-react-native";
+import { Check, Tag, CheckCircle2 } from "lucide-react-native";
 import { apiClient, SubscriptionPlan, unwrapList } from "../../lib/api";
 import { colors, fonts, radius } from "../../lib/colors";
 import { fmtUGX } from "../../lib/formatting";
@@ -22,6 +22,7 @@ export default function Pricing() {
   const [validating, setValidating] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [activated, setActivated] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,6 +39,7 @@ export default function Pricing() {
     setPromoResult(null);
     setPromoCode("");
     setCheckoutError(null);
+    setActivated(false);
   };
 
   const handleValidatePromo = async () => {
@@ -67,7 +69,11 @@ export default function Pricing() {
         plan_id: selectedPlan.id,
         promo_code: promoResult?.valid ? promoCode.trim() : undefined,
       });
-      await WebBrowser.openBrowserAsync(res.data.redirect_url);
+      if (res.data.payment_required) {
+        await WebBrowser.openBrowserAsync(res.data.redirect_url as string);
+      } else {
+        setActivated(true);
+      }
     } catch (err: any) {
       setCheckoutError(err?.response?.data?.detail || "Checkout failed. Please try again.");
     } finally {
@@ -110,7 +116,17 @@ export default function Pricing() {
         })}
       </View>
 
-      {selectedPlan && (
+      {selectedPlan && activated && (
+        <View style={styles.activatedCard}>
+          <CheckCircle2 size={32} color={colors.riskLow} style={{ marginBottom: 10 }} />
+          <Text style={styles.activatedTitle}>You're all set</Text>
+          <Text style={styles.activatedSubtitle}>
+            Your {selectedPlan.name} subscription is active — no payment was required.
+          </Text>
+        </View>
+      )}
+
+      {selectedPlan && !activated && (
         <View style={styles.checkoutCard}>
           <Text style={styles.checkoutTitle}>Checkout — {selectedPlan.name}</Text>
 
@@ -242,6 +258,27 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     borderRadius: radius.stub,
     padding: 18,
+  },
+  activatedCard: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    padding: 24,
+    alignItems: "center",
+  },
+  activatedTitle: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    color: colors.inkPaper,
+    marginBottom: 6,
+  },
+  activatedSubtitle: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+    textAlign: "center",
+    lineHeight: 19,
   },
   checkoutTitle: {
     fontFamily: fonts.display,

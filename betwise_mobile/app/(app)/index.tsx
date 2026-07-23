@@ -7,7 +7,6 @@ import { useAuthStore } from "../../lib/store";
 import { colors, fonts, radius } from "../../lib/colors";
 import { fmtUGX } from "../../lib/formatting";
 import LoadingSpinner from "../../components/LoadingSpinner";
-import PaceLineChart from "../../components/PaceLineChart";
 
 const PACE_META = {
   ahead: { label: "Ahead of pace", icon: ArrowUpRight, color: colors.riskLow },
@@ -73,12 +72,6 @@ export default function Dashboard() {
   const meta = pace ? PACE_META[pace.pace_status] : PACE_META.on_track;
   const PaceIcon = meta.icon;
 
-  const chartData = (plan.weekly_targets || []).map((wt) => ({
-    week: "W" + wt.week_number,
-    invested: parseFloat(wt.actual_invested_ugx || "0"),
-    earned: parseFloat(wt.actual_earned_ugx || "0"),
-  }));
-
   const currentWeek = plan.weekly_targets?.find((wt) => {
     const start = new Date(wt.week_starts_on);
     const end = new Date(start);
@@ -120,11 +113,44 @@ export default function Dashboard() {
         </View>
       </View>
 
-      {chartData.length > 0 && (
+      {pace && (
         <View style={styles.card}>
-          <Text style={styles.eyebrow}>WEEKLY INVESTED VS EARNED</Text>
-          <View style={{ marginTop: 12 }}>
-            <PaceLineChart data={chartData} />
+          <Text style={styles.eyebrow}>ODDS PROGRESS</Text>
+          <View style={styles.oddsGrid}>
+            <View>
+              <Text style={styles.oddsLabel}>Won</Text>
+              <Text style={[styles.oddsValue, { color: colors.riskLow }]}>{pace.season_bets_won}</Text>
+            </View>
+            <View>
+              <Text style={styles.oddsLabel}>Lost</Text>
+              <Text style={[styles.oddsValue, { color: colors.riskHigh }]}>{pace.season_bets_lost}</Text>
+            </View>
+            <View>
+              <Text style={styles.oddsLabel}>Pending</Text>
+              <Text style={styles.oddsValue}>{pace.season_bets_pending}</Text>
+            </View>
+            <View>
+              <Text style={styles.oddsLabel}>Avg odds on wins</Text>
+              <Text style={styles.oddsValue}>
+                {pace.season_avg_odds_achieved_on_wins !== null
+                  ? pace.season_avg_odds_achieved_on_wins.toFixed(2)
+                  : "—"}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.oddsFooter}>
+            <Text style={styles.oddsFooterText}>
+              Target odds to chase: <Text style={styles.oddsFooterValue}>{pace.season_target_odds_to_chase.toFixed(2)}</Text>
+            </Text>
+            {pace.season_odds_gap === null ? (
+              <Text style={[styles.oddsFooterText, { color: colors.inkFaint }]}>no wins logged yet</Text>
+            ) : pace.season_odds_gap <= 0 ? (
+              <Text style={[styles.oddsFooterText, { color: colors.riskLow }]}>on target</Text>
+            ) : (
+              <Text style={[styles.oddsFooterText, { color: colors.riskHigh }]}>
+                behind by {pace.season_odds_gap.toFixed(2)}
+              </Text>
+            )}
           </View>
         </View>
       )}
@@ -149,15 +175,23 @@ export default function Dashboard() {
               <Text style={styles.weekValue}>{currentWeek.target_odds_to_chase.toFixed(2)}</Text>
             </View>
           </View>
+          <Pressable onPress={() => router.push("/this-week")}>
+            <Text style={styles.weekLink}>View full week breakdown →</Text>
+          </Pressable>
         </View>
       )}
 
-      <Pressable
-        style={styles.primaryButton}
-        onPress={() => router.push("/recommendations")}
-      >
-        <Text style={styles.primaryButtonText}>View this week's recommendations</Text>
-      </Pressable>
+      <View style={{ gap: 10 }}>
+        <Pressable
+          style={styles.primaryButton}
+          onPress={() => router.push("/recommendations")}
+        >
+          <Text style={styles.primaryButtonText}>View this week's recommendations</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push("/this-week")}>
+          <Text style={styles.secondaryButtonText}>This week's plan</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -229,6 +263,42 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 20,
   },
+  oddsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 20,
+    marginTop: 12,
+  },
+  oddsLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.inkFaint,
+  },
+  oddsValue: {
+    fontFamily: fonts.mono,
+    fontSize: 18,
+    color: colors.inkPaper,
+    marginTop: 4,
+  },
+  oddsFooter: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    gap: 6,
+  },
+  oddsFooterText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkMuted,
+  },
+  oddsFooterValue: {
+    fontFamily: fonts.mono,
+    color: colors.inkPaper,
+  },
   noticeCard: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -263,11 +333,29 @@ const styles = StyleSheet.create({
     color: colors.inkPaper,
     marginTop: 4,
   },
+  weekLink: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.ticker,
+    marginTop: 14,
+  },
   primaryButton: {
     backgroundColor: colors.ticker,
     borderRadius: radius.stub,
     paddingVertical: 16,
     alignItems: "center",
+  },
+  secondaryButton: {
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 15,
+    color: colors.inkPaper,
   },
   primaryButtonText: {
     fontFamily: fonts.bodySemibold,

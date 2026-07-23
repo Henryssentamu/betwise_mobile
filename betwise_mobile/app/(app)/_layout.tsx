@@ -1,5 +1,5 @@
 import { Tabs, Redirect } from "expo-router";
-import { LayoutDashboard, TrendingUp, Users, CreditCard } from "lucide-react-native";
+import { LayoutDashboard, TrendingUp, Users, CreditCard, CalendarDays, ClipboardList } from "lucide-react-native";
 import { useAuthStore } from "../../lib/store";
 import { colors, fonts } from "../../lib/colors";
 import LoadingSpinner from "../../components/LoadingSpinner";
@@ -50,10 +50,24 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="this-week"
+        options={{
+          title: "WEEK",
+          tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size - 2} />,
+        }}
+      />
+      <Tabs.Screen
         name="recommendations/index"
         options={{
           title: "PICKS",
           tabBarIcon: ({ color, size }) => <TrendingUp color={color} size={size - 2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="bet-logs"
+        options={{
+          title: "BETS",
+          tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size - 2} />,
         }}
       />
       <Tabs.Screen

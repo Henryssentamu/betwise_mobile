@@ -97,8 +97,6 @@ export interface WeeklyTarget {
   week_starts_on: string;
   target_stake_ugx: string;
   target_odds_to_chase: number;
-  actual_invested_ugx: string;
-  actual_earned_ugx: string;
 }
 
 export interface SeasonPlan {
@@ -120,7 +118,68 @@ export interface PaceSummary {
   net_ugx: string;
   expected_net_by_now_ugx: string;
   pace_status: "ahead" | "on_track" | "behind";
+  season_bets_won: number;
+  season_bets_lost: number;
+  season_bets_pending: number;
+  season_avg_odds_achieved_on_wins: number | null;
+  season_target_odds_to_chase: number;
+  season_odds_gap: number | null;
   course_correction_message: string | null;
+}
+
+// Shared shape for week/day/month budget + odds breakdowns.
+interface BudgetAndOddsSummary {
+  target_stake_ugx: string;
+  spent_ugx: string;
+  earned_ugx: string;
+  net_ugx: string;
+  remaining_budget_ugx: string;
+  target_odds_to_chase: number;
+  bets_won: number;
+  bets_lost: number;
+  bets_pending: number;
+  avg_odds_achieved_on_wins: number | null;
+  odds_gap: number | null;
+}
+
+export interface DayBreakdown extends BudgetAndOddsSummary {
+  date: string;
+  qualifying_match_count: number;
+}
+
+export interface BetFrequencyAdvice {
+  available_match_days: number;
+  min_stake_per_bet_ugx: string;
+  recommended_bet_count: number;
+  recommended_stake_per_bet_ugx?: string;
+  recommended_days: string[];
+  message: string;
+}
+
+export interface WeekDetail extends BudgetAndOddsSummary {
+  week_number: number;
+  week_starts_on: string;
+  daily_breakdown: DayBreakdown[];
+  bet_frequency_advice: BetFrequencyAdvice;
+}
+
+export interface MonthSummary extends BudgetAndOddsSummary {
+  month_number: number;
+  starts_on: string;
+  ends_on: string;
+  week_numbers: number[];
+}
+
+export interface BetLog {
+  id: number;
+  recommendation: number | null;
+  week: number | null;
+  stake_ugx: string;
+  odds_taken: number;
+  followed_recommendation: boolean;
+  result: "pending" | "won" | "lost";
+  payout_ugx: string | null;
+  logged_at: string;
 }
 
 export interface BettingPartner {
@@ -268,19 +327,41 @@ class APIClient {
     return this.client.get<PaceSummary>("/season-plans/active/pace/");
   }
 
+  getWeekPlan(week: number | "current") {
+    return this.client.get<WeekDetail>("/season-plans/active/weeks/" + week + "/");
+  }
+
+  getMonthlyBreakdown() {
+    return this.client.get<{ months: MonthSummary[] }>("/season-plans/active/months/");
+  }
+
   validatePromoCode(payload: { code: string; plan_id: number }) {
     return this.client.post("/promo-codes/validate/", payload);
   }
 
   checkout(payload: { plan_id: number; promo_code?: string }) {
-    return this.client.post<{ merchant_reference: string; redirect_url: string }>(
-      "/checkout/",
-      payload
-    );
+    return this.client.post<{
+      merchant_reference: string;
+      payment_required: boolean;
+      redirect_url: string | null;
+    }>("/checkout/", payload);
   }
 
-  logBet(payload: { recommendation?: number; stake_ugx: number; odds_taken: number; note?: string }) {
-    return this.client.post("/bet-logs/", payload);
+  logBet(payload: {
+    recommendation?: number;
+    stake_ugx: number;
+    odds_taken: number;
+    followed_recommendation?: boolean;
+  }) {
+    return this.client.post<BetLog>("/bet-logs/", payload);
+  }
+
+  getBetLogs() {
+    return this.client.get<{ results: BetLog[] } | BetLog[]>("/bet-logs/");
+  }
+
+  reportBetResult(id: number, payload: { result: "won" | "lost"; payout_ugx?: number }) {
+    return this.client.patch<BetLog>("/bet-logs/" + id + "/", payload);
   }
 }
 
