@@ -86,9 +86,11 @@ export default function Dashboard() {
       contentContainerStyle={styles.scrollContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ticker} />}
     >
-      <Text style={styles.eyebrow}>
-        WELCOME BACK{user ? `, ${user.username.toUpperCase()}` : ""}
-      </Text>
+      <Pressable onPress={() => router.push("/profile")}>
+        <Text style={styles.eyebrow}>
+          WELCOME BACK{user ? `, ${user.username.toUpperCase()}` : ""}
+        </Text>
+      </Pressable>
       <Text style={styles.title}>Season overview</Text>
 
       <View style={styles.kpiGrid}>

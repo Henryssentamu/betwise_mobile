@@ -11,8 +11,9 @@ export interface SignupPayload {
   username: string;
   email: string;
   password: string;
+  country: string;
+  phone_number: string;
   date_of_birth: string;
-  national_id_number: string;
   default_risk_appetite?: "low" | "medium" | "high";
 }
 
@@ -25,6 +26,9 @@ export interface UserProfile {
   id: string;
   username: string;
   email: string;
+  phone_number: string;
+  country: string;
+  date_of_birth: string | null;
   is_age_verified: boolean;
   default_risk_appetite: "low" | "medium" | "high";
   created_at: string;

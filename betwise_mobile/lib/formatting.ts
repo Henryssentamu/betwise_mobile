@@ -23,6 +23,16 @@ export function fmtDateOnly(iso: string) {
   });
 }
 
+export function fmtDateLong(iso: string | null) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export function fmtKickoffLong(iso: string) {
   const d = new Date(iso);
   const datePart = d.toLocaleDateString(undefined, {

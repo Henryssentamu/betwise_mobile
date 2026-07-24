@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   Pressable,
@@ -15,15 +16,21 @@ import { Link, useRouter } from "expo-router";
 import { useAuthStore } from "../../lib/store";
 import { colors, fonts, radius } from "../../lib/colors";
 import { isAtLeast18 } from "../../lib/formatting";
+import { findCountry } from "../../lib/countries";
 import FormField from "../../components/FormField";
+import CountryPicker from "../../components/CountryPicker";
 
 const schema = z
   .object({
     username: z.string().min(3, "At least 3 characters"),
     email: z.string().email("Enter a valid email"),
     password: z.string().min(8, "At least 8 characters"),
+    country_iso2: z.string().min(1, "Select your country"),
+    phone_local: z
+      .string()
+      .min(1, "Required")
+      .regex(/^\d{6,12}$/, "Enter a valid phone number (digits only)"),
     date_of_birth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use format YYYY-MM-DD"),
-    national_id_number: z.string().min(5, "Enter a valid ID number"),
     default_risk_appetite: z.enum(["low", "medium", "high"]),
   })
   .refine((data) => isAtLeast18(data.date_of_birth), {
@@ -53,16 +60,27 @@ export default function Signup() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { default_risk_appetite: "medium" },
+    defaultValues: { default_risk_appetite: "medium", country_iso2: "UG" },
   });
 
   const selectedRisk = watch("default_risk_appetite");
+  const selectedCountry = findCountry(watch("country_iso2"));
 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     setSubmitting(true);
     try {
-      await signup(values);
+      const country = findCountry(values.country_iso2);
+      const localDigits = values.phone_local.replace(/^0+/, "");
+      await signup({
+        username: values.username,
+        email: values.email,
+        password: values.password,
+        country: country?.name ?? "",
+        phone_number: "+" + (country?.dialCode ?? "") + localDigits,
+        date_of_birth: values.date_of_birth,
+        default_risk_appetite: values.default_risk_appetite,
+      });
       router.replace("/onboarding");
     } catch (err: any) {
       const data = err?.response?.data;
@@ -147,18 +165,41 @@ export default function Signup() {
 
         <Controller
           control={control}
-          name="national_id_number"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
-              label="National ID number"
-              placeholder="For age verification only"
+          name="country_iso2"
+          render={({ field: { onChange, value } }) => (
+            <CountryPicker
+              label="Country"
               value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              error={errors.national_id_number?.message}
+              onChange={onChange}
+              error={errors.country_iso2?.message}
             />
           )}
         />
+
+        <View style={styles.wrap}>
+          <Text style={styles.label}>Phone number</Text>
+          <View style={styles.phoneRow}>
+            <View style={styles.dialChip}>
+              <Text style={styles.dialChipText}>+{selectedCountry?.dialCode ?? "—"}</Text>
+            </View>
+            <Controller
+              control={control}
+              name="phone_local"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="701234567"
+                  placeholderTextColor={colors.inkFaint}
+                  keyboardType="number-pad"
+                  style={[styles.phoneInput, errors.phone_local ? styles.inputError : null]}
+                />
+              )}
+            />
+          </View>
+          {errors.phone_local && <Text style={styles.error}>{errors.phone_local.message}</Text>}
+        </View>
 
         <Text style={styles.riskLabel}>Default risk appetite</Text>
         <View style={styles.riskRow}>
@@ -233,6 +274,53 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     lineHeight: 19,
     marginBottom: 24,
+  },
+  wrap: {
+    marginBottom: 18,
+  },
+  label: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+    marginBottom: 6,
+  },
+  phoneRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  dialChip: {
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    backgroundColor: colors.panel,
+  },
+  dialChipText: {
+    fontFamily: fonts.mono,
+    fontSize: 14,
+    color: colors.inkMuted,
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.inkPaper,
+  },
+  inputError: {
+    borderColor: colors.riskHigh,
+  },
+  error: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.riskHigh,
+    marginTop: 5,
   },
   riskLabel: {
     fontFamily: fonts.body,
