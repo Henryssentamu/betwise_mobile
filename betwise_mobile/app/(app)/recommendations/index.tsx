@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   eyebrow: {
     fontFamily: fonts.mono,

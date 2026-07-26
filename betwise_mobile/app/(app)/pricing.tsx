@@ -1,15 +1,21 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { Check, Tag, CheckCircle2 } from "lucide-react-native";
-import { apiClient, SubscriptionPlan, unwrapList } from "../../lib/api";
+import { apiClient, Subscription, SubscriptionPlan, unwrapList } from "../../lib/api";
 import { colors, fonts, radius } from "../../lib/colors";
 import { fmtUGX } from "../../lib/formatting";
+import { friendlyErrorMessage } from "../../lib/errors";
+import { useAuthStore } from "../../lib/store";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import InlineError from "../../components/InlineError";
 
 export default function Pricing() {
+  const router = useRouter();
+  const refreshProfile = useAuthStore((s) => s.refreshProfile);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [currentSubscription, setCurrentSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
   const [promoCode, setPromoCode] = useState("");
@@ -23,13 +29,18 @@ export default function Pricing() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [activated, setActivated] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      apiClient
-        .getSubscriptionPlans()
-        .then((res) => setPlans(unwrapList(res.data)))
+      Promise.all([apiClient.getSubscriptionPlans(), apiClient.getMySubscription()])
+        .then(([plansRes, subRes]) => {
+          setPlans(unwrapList(plansRes.data));
+          setCurrentSubscription(subRes.data);
+          setLoadError(null);
+        })
+        .catch((err) => setLoadError(friendlyErrorMessage(err, "Couldn't load plans.")))
         .finally(() => setLoading(false));
     }, [])
   );
@@ -54,7 +65,7 @@ export default function Pricing() {
       });
       setPromoResult(res.data);
     } catch (err: any) {
-      setPromoError(err?.response?.data?.detail || "That promo code isn't valid.");
+      setPromoError(friendlyErrorMessage(err, "That promo code isn't valid."));
     } finally {
       setValidating(false);
     }
@@ -73,15 +84,26 @@ export default function Pricing() {
         await WebBrowser.openBrowserAsync(res.data.redirect_url as string);
       } else {
         setActivated(true);
+        refreshProfile();
       }
     } catch (err: any) {
-      setCheckoutError(err?.response?.data?.detail || "Checkout failed. Please try again.");
+      setCheckoutError(friendlyErrorMessage(err, "Checkout failed. Please try again."));
     } finally {
       setCheckingOut(false);
     }
   };
 
   if (loading) return <LoadingSpinner label="Loading plans" />;
+
+  if (loadError) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.eyebrow}>SUBSCRIPTION</Text>
+        <Text style={styles.title}>Choose your plan</Text>
+        <InlineError message={loadError} />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -91,13 +113,21 @@ export default function Pricing() {
       <View style={{ gap: 12, marginBottom: 24 }}>
         {plans.map((plan) => {
           const active = selectedPlan?.id === plan.id;
+          const isCurrent = currentSubscription?.plan?.id === plan.id;
           return (
             <Pressable
               key={plan.id}
               onPress={() => selectPlan(plan)}
               style={[styles.planCard, active && styles.planCardActive]}
             >
-              <Text style={styles.eyebrow}>{plan.tier.toUpperCase()}</Text>
+              <View style={styles.planCardHeader}>
+                <Text style={styles.eyebrow}>{plan.billing_cycle.toUpperCase()}</Text>
+                {isCurrent && (
+                  <View style={styles.currentBadge}>
+                    <Text style={styles.currentBadgeText}>CURRENT PLAN</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.planName}>{plan.name}</Text>
               <Text style={styles.planPrice}>{fmtUGX(plan.price_ugx)}</Text>
               <Text style={styles.planCycle}>
@@ -123,12 +153,26 @@ export default function Pricing() {
           <Text style={styles.activatedSubtitle}>
             Your {selectedPlan.name} subscription is active — no payment was required.
           </Text>
+          <Pressable style={styles.viewProfileButton} onPress={() => router.push("/profile")}>
+            <Text style={styles.viewProfileButtonText}>View in profile</Text>
+          </Pressable>
         </View>
       )}
 
-      {selectedPlan && !activated && (
+      {selectedPlan && !activated && currentSubscription?.plan?.id === selectedPlan.id && (
+        <View style={styles.activatedCard}>
+          <CheckCircle2 size={32} color={colors.riskLow} style={{ marginBottom: 10 }} />
+          <Text style={styles.activatedTitle}>This is your current plan</Text>
+          <Text style={styles.activatedSubtitle}>Pick a different plan above to switch.</Text>
+        </View>
+      )}
+
+      {selectedPlan && !activated && currentSubscription?.plan?.id !== selectedPlan.id && (
         <View style={styles.checkoutCard}>
-          <Text style={styles.checkoutTitle}>Checkout — {selectedPlan.name}</Text>
+          <Text style={styles.checkoutTitle}>
+            {currentSubscription ? "Switch to " : "Checkout — "}
+            {selectedPlan.name}
+          </Text>
 
           <View style={styles.promoRow}>
             <View style={styles.promoInputWrap}>
@@ -197,7 +241,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 40,
   },
   eyebrow: {
@@ -219,6 +263,25 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     borderRadius: radius.stub,
     padding: 18,
+  },
+  planCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  currentBadge: {
+    borderWidth: 1,
+    borderColor: colors.riskLow + "66",
+    backgroundColor: colors.riskLow + "22",
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  currentBadgeText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 0.5,
+    color: colors.riskLow,
   },
   planCardActive: {
     borderColor: colors.ticker,
@@ -279,6 +342,18 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     textAlign: "center",
     lineHeight: 19,
+  },
+  viewProfileButton: {
+    backgroundColor: colors.ticker,
+    borderRadius: radius.stub,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginTop: 18,
+  },
+  viewProfileButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 13,
+    color: colors.bg,
   },
   checkoutTitle: {
     fontFamily: fonts.display,

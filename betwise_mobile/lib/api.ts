@@ -37,11 +37,20 @@ export interface UserProfile {
 export interface SubscriptionPlan {
   id: number;
   name: string;
-  tier: "casual" | "pro";
   billing_cycle: "monthly" | "seasonal";
   price_ugx: string;
   features: string[];
   is_active: boolean;
+}
+
+export interface Subscription {
+  id: number;
+  plan: SubscriptionPlan;
+  status: "active" | "past_due" | "cancelled" | "expired";
+  starts_at: string;
+  ends_at: string | null;
+  auto_renew: boolean;
+  created_at: string;
 }
 
 export interface League {
@@ -74,8 +83,8 @@ export interface Match {
 export interface MatchDetail extends Match {
   head_to_head: {
     matches_considered: number;
-    team_a_wins: number;
-    team_b_wins: number;
+    home_wins: number;
+    away_wins: number;
     draws: number;
   } | null;
   home_team_news: Array<{ id: number; player_name: string; severity: string; note: string }>;
@@ -194,8 +203,34 @@ export interface BettingPartner {
   rank_order: number;
 }
 
+export interface Tipster {
+  id: number;
+  name: string;
+  platform: "twitter" | "instagram" | "telegram" | "tiktok" | "youtube" | "website";
+  handle_or_website: string;
+  highlight_note: string;
+  rank_order: number;
+}
+
 const ACCESS_KEY = "betwise_access_token";
 const REFRESH_KEY = "betwise_refresh_token";
+
+// Tracks in-flight requests so a global loading indicator can activate on
+// any interaction that triggers a network call, and deactivate once it settles.
+type LoadingListener = (isLoading: boolean) => void;
+const loadingListeners = new Set<LoadingListener>();
+let activeRequestCount = 0;
+
+function notifyLoading(delta: number) {
+  activeRequestCount = Math.max(0, activeRequestCount + delta);
+  const isLoading = activeRequestCount > 0;
+  loadingListeners.forEach((listener) => listener(isLoading));
+}
+
+export function subscribeToLoading(listener: LoadingListener): () => void {
+  loadingListeners.add(listener);
+  return () => loadingListeners.delete(listener);
+}
 
 class APIClient {
   private client: AxiosInstance;
@@ -213,12 +248,17 @@ class APIClient {
 
     this.client.interceptors.request.use(async (config) => {
       await this.ready;
+      notifyLoading(1);
       return config;
     });
 
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        notifyLoading(-1);
+        return response;
+      },
       async (error) => {
+        notifyLoading(-1);
         if (error.response?.status === 401 && this.refreshToken) {
           try {
             const res = await axios.post(API_BASE_URL + "/auth/token/refresh/", {
@@ -295,6 +335,14 @@ class APIClient {
     return this.client.get<{ results: SubscriptionPlan[] } | SubscriptionPlan[]>("/auth/plans/");
   }
 
+  getMySubscription() {
+    return this.client.get<Subscription | null>("/auth/subscription/");
+  }
+
+  updateProfile(payload: Partial<{ default_risk_appetite: "low" | "medium" | "high" }>) {
+    return this.client.patch<UserProfile>("/auth/me/", payload);
+  }
+
   getUpcomingMatches() {
     return this.client.get<{ results: Match[] } | Match[]>("/matches/upcoming/");
   }
@@ -311,6 +359,10 @@ class APIClient {
 
   getBettingPartners() {
     return this.client.get<{ results: BettingPartner[] } | BettingPartner[]>("/betting-partners/");
+  }
+
+  getTipsters() {
+    return this.client.get<{ results: Tipster[] } | Tipster[]>("/tipsters/");
   }
 
   createSeasonPlan(payload: {

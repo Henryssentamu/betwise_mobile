@@ -73,7 +73,8 @@ export default function Dashboard() {
   const PaceIcon = meta.icon;
 
   const currentWeek = plan.weekly_targets?.find((wt) => {
-    const start = new Date(wt.week_starts_on);
+    const [y, m, d] = wt.week_starts_on.split("-").map(Number);
+    const start = new Date(y, m - 1, d);
     const end = new Date(start);
     end.setDate(end.getDate() + 7);
     const now = new Date();
@@ -86,11 +87,9 @@ export default function Dashboard() {
       contentContainerStyle={styles.scrollContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ticker} />}
     >
-      <Pressable onPress={() => router.push("/profile")}>
-        <Text style={styles.eyebrow}>
-          WELCOME BACK{user ? `, ${user.username.toUpperCase()}` : ""}
-        </Text>
-      </Pressable>
+      <Text style={styles.eyebrow}>
+        WELCOME BACK{user ? `, ${user.username.toUpperCase()}` : ""}
+      </Text>
       <Text style={styles.title}>Season overview</Text>
 
       <View style={styles.kpiGrid}>
@@ -205,7 +204,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 40,
   },
   eyebrow: {

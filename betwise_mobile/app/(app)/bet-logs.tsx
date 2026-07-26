@@ -4,7 +4,9 @@ import { useFocusEffect } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { apiClient, BetLog, unwrapList } from "../../lib/api";
 import { colors, fonts, radius } from "../../lib/colors";
+import { friendlyErrorMessage } from "../../lib/errors";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import InlineError from "../../components/InlineError";
 import BetLogRow from "../../components/BetLogRow";
 import LogBetForm from "../../components/LogBetForm";
 
@@ -13,11 +15,16 @@ export default function BetLogs() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showLogForm, setShowLogForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiClient
       .getBetLogs()
-      .then((res) => setLogs(unwrapList(res.data)))
+      .then((res) => {
+        setLogs(unwrapList(res.data));
+        setError(null);
+      })
+      .catch((err) => setError(friendlyErrorMessage(err, "Couldn't load your bet log.")))
       .finally(() => {
         setLoading(false);
         setRefreshing(false);
@@ -65,27 +72,31 @@ export default function BetLogs() {
         </View>
       )}
 
-      <FlatList
-        data={logs}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <BetLogRow
-            log={item}
-            onResolved={(updated) =>
-              setLogs((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
-            }
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ticker} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>You haven't logged any bets yet.</Text>
-          </View>
-        }
-      />
+      {error ? (
+        <InlineError message={error} />
+      ) : (
+        <FlatList
+          data={logs}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <BetLogRow
+              log={item}
+              onResolved={(updated) =>
+                setLogs((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+              }
+            />
+          )}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ticker} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>You haven't logged any bets yet.</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -95,7 +106,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 20,
   },
   headerRow: {
     flexDirection: "row",

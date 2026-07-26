@@ -28,6 +28,11 @@ export default function CountryPicker({ label, value, onChange, error }: Country
     setQuery("");
   };
 
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
@@ -42,11 +47,11 @@ export default function CountryPicker({ label, value, onChange, error }: Country
       </Pressable>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} animationType="slide" onRequestClose={close}>
         <View style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select country</Text>
-            <Pressable onPress={() => setOpen(false)} hitSlop={10}>
+            <Pressable onPress={close} hitSlop={10}>
               <X size={20} color={colors.inkMuted} />
             </Pressable>
           </View>

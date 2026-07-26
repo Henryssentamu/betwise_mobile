@@ -71,7 +71,7 @@ export default function Signup() {
     setSubmitting(true);
     try {
       const country = findCountry(values.country_iso2);
-      const localDigits = values.phone_local.replace(/^0+/, "");
+      const localDigits = values.phone_local.replace(/^0/, "");
       await signup({
         username: values.username,
         email: values.email,

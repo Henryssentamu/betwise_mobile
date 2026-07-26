@@ -73,7 +73,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="partners"
         options={{
-          title: "PARTNERS",
+          title: "TRUSTED",
           tabBarIcon: ({ color, size }) => <Users color={color} size={size - 2} />,
         }}
       />

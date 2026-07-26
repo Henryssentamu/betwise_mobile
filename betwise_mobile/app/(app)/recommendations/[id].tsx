@@ -64,9 +64,9 @@ export default function MatchDetail() {
   const h2h = match.head_to_head;
   const h2hData = h2h
     ? [
-        { label: match.home_team.short_name, value: h2h.team_a_wins, color: colors.ticker },
+        { label: match.home_team.short_name, value: h2h.home_wins, color: colors.ticker },
         { label: "Draws", value: h2h.draws, color: colors.inkFaint },
-        { label: match.away_team.short_name, value: h2h.team_b_wins, color: colors.riskMedium },
+        { label: match.away_team.short_name, value: h2h.away_wins, color: colors.riskMedium },
       ]
     : [];
 
@@ -135,14 +135,20 @@ export default function MatchDetail() {
           <View key={team.id} style={styles.formCard}>
             <Text style={styles.eyebrow}>{team.short_name.toUpperCase()} FORM</Text>
             <Text style={styles.formScore}>
-              {team.current_form_score.toFixed(0)}
-              <Text style={styles.formScoreMax}>/100</Text>
+              {team.current_form_score > 0 ? "+" : ""}
+              {team.current_form_score.toFixed(1)}
             </Text>
+            <Text style={styles.formScoreScale}>scale: -10 to +10</Text>
             <View style={styles.formTrack}>
               <View
                 style={[
                   styles.formFill,
-                  { width: `${Math.min(100, Math.max(0, team.current_form_score))}%` },
+                  {
+                    width: `${Math.min(
+                      100,
+                      Math.max(0, ((team.current_form_score + 10) / 20) * 100)
+                    )}%`,
+                  },
                 ]}
               />
             </View>
@@ -186,7 +192,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 20,
     paddingBottom: 40,
   },
   centerContainer: {
@@ -291,9 +297,11 @@ const styles = StyleSheet.create({
     color: colors.inkPaper,
     marginTop: 8,
   },
-  formScoreMax: {
-    fontSize: 13,
+  formScoreScale: {
+    fontFamily: fonts.body,
+    fontSize: 11,
     color: colors.inkFaint,
+    marginTop: 2,
   },
   formTrack: {
     height: 5,

@@ -1,10 +1,15 @@
-import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { BadgeCheck } from "lucide-react-native";
+import { useCallback, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { BadgeCheck, ChevronRight } from "lucide-react-native";
 import { useAuthStore } from "../../lib/store";
+import { apiClient, Subscription } from "../../lib/api";
 import { colors, fonts, radius } from "../../lib/colors";
-import { fmtDateLong } from "../../lib/formatting";
-import RiskBadge from "../../components/RiskBadge";
+import { fmtDateLong, fmtUGX } from "../../lib/formatting";
+import { friendlyErrorMessage } from "../../lib/errors";
+import RiskAppetitePicker from "../../components/RiskAppetitePicker";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import InlineError from "../../components/InlineError";
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -18,6 +23,42 @@ function Row({ label, value }: { label: string; value: string }) {
 export default function Profile() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const updateRiskAppetite = useAuthStore((s) => s.updateRiskAppetite);
+  const router = useRouter();
+
+  const [savingRisk, setSavingRisk] = useState(false);
+  const [riskError, setRiskError] = useState<string | null>(null);
+
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoadingSubscription(true);
+      apiClient
+        .getMySubscription()
+        .then((res) => {
+          setSubscription(res.data);
+          setSubscriptionError(null);
+        })
+        .catch((err) => setSubscriptionError(friendlyErrorMessage(err, "Couldn't load your subscription.")))
+        .finally(() => setLoadingSubscription(false));
+    }, [])
+  );
+
+  const handleRiskChange = async (tier: "low" | "medium" | "high") => {
+    if (tier === user?.default_risk_appetite) return;
+    setSavingRisk(true);
+    setRiskError(null);
+    try {
+      await updateRiskAppetite(tier);
+    } catch (err: any) {
+      setRiskError(friendlyErrorMessage(err, "Couldn't update your risk appetite."));
+    } finally {
+      setSavingRisk(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -54,11 +95,51 @@ export default function Profile() {
       <View style={styles.card}>
         <Text style={styles.cardLabel}>RISK APPETITE</Text>
         <View style={{ marginTop: 12 }}>
-          <RiskBadge tier={user.default_risk_appetite} />
+          <RiskAppetitePicker
+            value={user.default_risk_appetite}
+            onChange={handleRiskChange}
+            disabled={savingRisk}
+          />
         </View>
+        {riskError && <Text style={styles.errorText}>{riskError}</Text>}
         <Text style={styles.hint}>
           Your default risk appetite shapes which recommendations and season stakes we suggest.
         </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>SUBSCRIPTION</Text>
+        {loadingSubscription ? (
+          <Text style={[styles.hint, { marginTop: 12 }]}>Loading…</Text>
+        ) : subscriptionError ? (
+          <InlineError message={subscriptionError} />
+        ) : subscription ? (
+          <>
+            <View style={styles.planRow}>
+              <View>
+                <Text style={styles.planName}>{subscription.plan.name}</Text>
+                <Text style={styles.planMeta}>
+                  {fmtUGX(subscription.plan.price_ugx)} / {subscription.plan.billing_cycle === "monthly" ? "month" : "season"}
+                  {subscription.ends_at ? ` · renews ${fmtDateLong(subscription.ends_at.slice(0, 10))}` : ""}
+                </Text>
+              </View>
+            </View>
+            <Pressable style={styles.upgradeButton} onPress={() => router.push("/pricing")}>
+              <Text style={styles.upgradeButtonText}>Change plan</Text>
+              <ChevronRight size={14} color={colors.inkMuted} />
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.hint, { marginTop: 12 }]}>
+              You don't have an active subscription yet.
+            </Text>
+            <Pressable style={styles.upgradeButton} onPress={() => router.push("/pricing")}>
+              <Text style={styles.upgradeButtonText}>Choose a plan</Text>
+              <ChevronRight size={14} color={colors.inkMuted} />
+            </Pressable>
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -71,7 +152,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 64,
+    paddingTop: 20,
     paddingBottom: 40,
   },
   eyebrow: {
@@ -140,5 +221,41 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
     marginTop: 10,
     lineHeight: 16,
+  },
+  errorText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.riskHigh,
+    marginTop: 8,
+  },
+  planRow: {
+    marginTop: 12,
+  },
+  planName: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: colors.inkPaper,
+  },
+  planMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkMuted,
+    marginTop: 3,
+  },
+  upgradeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    paddingVertical: 12,
+    marginTop: 14,
+  },
+  upgradeButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 13,
+    color: colors.inkMuted,
   },
 });
