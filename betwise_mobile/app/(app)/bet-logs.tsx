@@ -3,14 +3,17 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, Pressable } from "rea
 import { useFocusEffect } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { apiClient, BetLog, unwrapList } from "../../lib/api";
+import { useAuthStore } from "../../lib/store";
 import { colors, fonts, radius } from "../../lib/colors";
 import { friendlyErrorMessage } from "../../lib/errors";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import InlineError from "../../components/InlineError";
 import BetLogRow from "../../components/BetLogRow";
 import LogBetForm from "../../components/LogBetForm";
+import SubscriptionGate from "../../components/SubscriptionGate";
 
 export default function BetLogs() {
+  const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const [logs, setLogs] = useState<BetLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,6 +47,15 @@ export default function BetLogs() {
   };
 
   if (loading) return <LoadingSpinner label="Loading bet logs" />;
+
+  if (hasActiveSubscription === false) {
+    return (
+      <SubscriptionGate
+        title="Bet logging is a subscriber feature"
+        description="Subscribe to track your stakes, odds, and results against your season plan."
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>

@@ -1,25 +1,41 @@
+import { useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { User } from "lucide-react-native";
 import { useAuthStore } from "../lib/store";
 import { colors, fonts } from "../lib/colors";
 
-const HIDDEN_ON = ["/onboarding"];
-
+// No auth/route-hiding check here on purpose — this component only ever
+// mounts inside app/(app)/_layout.tsx, which itself only renders once
+// isAuthenticated is confirmed true. /login, /signup, and /onboarding are
+// sibling routes outside that tree, so this can't render there structurally;
+// no pathname string-matching to keep in sync or risk going stale.
 export default function AppHeader() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const pathname = usePathname();
 
-  if (!isAuthenticated || HIDDEN_ON.includes(pathname)) return null;
+  // Profile lives in its own tab, so router.back() only pops within that
+  // tab's own (empty) stack instead of returning to whichever tab the user
+  // came from. Remember the last non-profile tab so the second tap can
+  // navigate straight back to it.
+  const lastTabRef = useRef("/");
+  useEffect(() => {
+    if (pathname !== "/profile") lastTabRef.current = pathname;
+  }, [pathname]);
 
   return (
     <View style={styles.header}>
       <Text style={styles.logo}>
         Bet<Text style={{ color: colors.ticker }}>Wise</Text>
       </Text>
-      <Pressable style={styles.profileRow} onPress={() => router.push("/profile")} hitSlop={10}>
+      <Pressable
+        style={styles.profileRow}
+        onPress={() =>
+          pathname === "/profile" ? router.replace(lastTabRef.current) : router.push("/profile")
+        }
+        hitSlop={10}
+      >
         {user && (
           <Text style={styles.username} numberOfLines={1}>
             {user.username}

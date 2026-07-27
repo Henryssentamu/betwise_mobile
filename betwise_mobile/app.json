@@ -4,6 +4,7 @@
     "slug": "betwise-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/master_1024.png",
     "scheme": "betwise",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0E1416",
@@ -21,6 +22,7 @@
     "android": {
       "package": "com.betwise.mobile",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/glyph_transparent_1024.png",
         "backgroundColor": "#0E1416"
       }
     },

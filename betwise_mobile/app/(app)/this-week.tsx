@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native
 import { useFocusEffect } from "expo-router";
 import { CalendarDays, TrendingUp } from "lucide-react-native";
 import { apiClient, WeekDetail, MonthSummary } from "../../lib/api";
+import { useAuthStore } from "../../lib/store";
 import { colors, fonts, radius } from "../../lib/colors";
 import { fmtUGX, fmtDateOnly } from "../../lib/formatting";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import SubscriptionGate from "../../components/SubscriptionGate";
 
 function OddsGap({ gap }: { gap: number | null }) {
   if (gap === null) return <Text style={{ color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12 }}>no wins yet</Text>;
@@ -18,6 +20,7 @@ function OddsGap({ gap }: { gap: number | null }) {
 }
 
 export default function ThisWeek() {
+  const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const [week, setWeek] = useState<WeekDetail | null>(null);
   const [months, setMonths] = useState<MonthSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,15 @@ export default function ThisWeek() {
   };
 
   if (loading) return <LoadingSpinner label="Loading this week's plan" />;
+
+  if (hasActiveSubscription === false) {
+    return (
+      <SubscriptionGate
+        title="This Week is a subscriber feature"
+        description="Subscribe to see your weekly stake, odds targets, daily breakdown, and monthly progress."
+      />
+    );
+  }
 
   if (hasNoPlan || !week) {
     return (

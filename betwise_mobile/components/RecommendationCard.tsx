@@ -11,8 +11,10 @@ const BET_TYPE_LABEL: Record<string, string> = {
   away_win: "Away win",
   draw: "Draw",
   corners: "Corners",
-  btts: "Both teams to score",
-  over_under: "Over/Under",
+  btts_yes: "Both teams to score: Yes",
+  btts_no: "Both teams to score: No",
+  over_2_5: "Over 2.5 goals",
+  under_2_5: "Under 2.5 goals",
 };
 
 export default function RecommendationCard({ rec }: { rec: Recommendation }) {

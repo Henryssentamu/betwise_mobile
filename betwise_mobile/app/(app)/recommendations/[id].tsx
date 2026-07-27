@@ -9,14 +9,17 @@ import LoadingSpinner from "../../../components/LoadingSpinner";
 import SimpleBarChart from "../../../components/SimpleBarChart";
 import LogBetForm from "../../../components/LogBetForm";
 import RiskBadge from "../../../components/RiskBadge";
+import SubscriptionGate from "../../../components/SubscriptionGate";
 
 const BET_TYPE_LABEL: Record<string, string> = {
   home_win: "Home win",
   away_win: "Away win",
   draw: "Draw",
   corners: "Corners",
-  btts: "Both teams to score",
-  over_under: "Over/Under",
+  btts_yes: "Both teams to score: Yes",
+  btts_no: "Both teams to score: No",
+  over_2_5: "Over 2.5 goals",
+  under_2_5: "Under 2.5 goals",
 };
 
 const SEVERITY_META: Record<string, { label: string; color: string }> = {
@@ -32,6 +35,7 @@ export default function MatchDetail() {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -45,13 +49,29 @@ export default function MatchDetail() {
           setMatch(matchRes.data);
           setRecommendation(unwrapList(recRes.data)[0] ?? null);
           setError(null);
+          setLocked(false);
         })
-        .catch(() => setError("Couldn't load this match."))
+        .catch((err: any) => {
+          if (err?.response?.status === 403) {
+            setLocked(true);
+          } else {
+            setError("Couldn't load this match.");
+          }
+        })
         .finally(() => setLoading(false));
     }, [id])
   );
 
   if (loading) return <LoadingSpinner label="Pulling match data" />;
+
+  if (locked) {
+    return (
+      <SubscriptionGate
+        title="Match analysis is a subscriber feature"
+        description="Subscribe to see our pick, head-to-head record, team form, and squad news for this match."
+      />
+    );
+  }
 
   if (error || !match) {
     return (

@@ -7,6 +7,7 @@ import { useAuthStore } from "../../lib/store";
 import { colors, fonts, radius } from "../../lib/colors";
 import { fmtUGX } from "../../lib/formatting";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import SubscriptionGate from "../../components/SubscriptionGate";
 
 const PACE_META = {
   ahead: { label: "Ahead of pace", icon: ArrowUpRight, color: colors.riskLow },
@@ -16,6 +17,7 @@ const PACE_META = {
 
 export default function Dashboard() {
   const user = useAuthStore((s) => s.user);
+  const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const router = useRouter();
   const [plan, setPlan] = useState<SeasonPlan | null>(null);
   const [pace, setPace] = useState<PaceSummary | null>(null);
@@ -52,6 +54,15 @@ export default function Dashboard() {
   };
 
   if (loading) return <LoadingSpinner label="Loading your season" />;
+
+  if (hasActiveSubscription === false) {
+    return (
+      <SubscriptionGate
+        title="Season planning is a subscriber feature"
+        description="Subscribe to build a season plan, get weekly stakes tailored to your budget, and track your pace all season."
+      />
+    );
+  }
 
   if (hasNoPlan || !plan) {
     return (

@@ -3,10 +3,12 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from "react-na
 import { useFocusEffect } from "expo-router";
 import { ExternalLink, AtSign, Camera, Send, Music2, Play, Globe } from "lucide-react-native";
 import { apiClient, BettingPartner, Tipster, unwrapList } from "../../lib/api";
+import { useAuthStore } from "../../lib/store";
 import { colors, fonts, radius } from "../../lib/colors";
 import { friendlyErrorMessage } from "../../lib/errors";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import InlineError from "../../components/InlineError";
+import SubscriptionGate from "../../components/SubscriptionGate";
 
 const PLATFORM_ICON: Record<Tipster["platform"], typeof AtSign> = {
   twitter: AtSign,
@@ -34,6 +36,7 @@ function tipsterLink(t: Tipster): string {
 }
 
 export default function Partners() {
+  const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const [partners, setPartners] = useState<BettingPartner[]>([]);
   const [tipsters, setTipsters] = useState<Tipster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,15 @@ export default function Partners() {
   );
 
   if (loading) return <LoadingSpinner label="Loading trusted picks" />;
+
+  if (hasActiveSubscription === false) {
+    return (
+      <SubscriptionGate
+        title="Partners & tipsters is a subscriber feature"
+        description="Subscribe to see our trusted sportsbook and tipster recommendations."
+      />
+    );
+  }
 
   if (error) {
     return (

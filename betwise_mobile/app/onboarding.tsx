@@ -17,6 +17,7 @@ import { useAuthStore } from "../lib/store";
 import { colors, fonts, radius } from "../lib/colors";
 import FormField from "../components/FormField";
 import LoadingSpinner from "../components/LoadingSpinner";
+import SubscriptionGate from "../components/SubscriptionGate";
 
 const schema = z.object({
   starts_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use format YYYY-MM-DD"),
@@ -46,6 +47,7 @@ export default function Onboarding() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const dates = defaultDates();
@@ -72,6 +74,14 @@ export default function Onboarding() {
 
   if (isLoading) return <LoadingSpinner label="Loading" />;
   if (!isAuthenticated) return <Redirect href="/login" />;
+  if (hasActiveSubscription === false) {
+    return (
+      <SubscriptionGate
+        title="Season planning is a subscriber feature"
+        description="Subscribe to build a season plan, get weekly stakes tailored to your budget, and track your pace all season."
+      />
+    );
+  }
 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);

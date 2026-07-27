@@ -4,15 +4,18 @@ import { Sparkles } from "lucide-react-native";
 import { useAuthStore } from "../lib/store";
 import { colors, fonts } from "../lib/colors";
 
-const HIDDEN_ON = ["/pricing", "/login", "/signup", "/onboarding"];
+// Like AppHeader, this only ever mounts inside app/(app)/_layout.tsx, so
+// /login, /signup, and /onboarding can't apply here structurally — the only
+// route within this tree that still needs an explicit exclusion is /pricing
+// (no point nudging someone to subscribe while they're already there).
+const HIDDEN_ON = ["/pricing"];
 
 export default function SubscriptionBanner() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const pathname = usePathname();
   const router = useRouter();
 
-  if (!isAuthenticated || hasActiveSubscription !== false) return null;
+  if (hasActiveSubscription !== false) return null;
   if (HIDDEN_ON.includes(pathname)) return null;
 
   return (

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { BadgeCheck, ChevronRight } from "lucide-react-native";
+import { BadgeCheck, ChevronRight, Lock, LogOut } from "lucide-react-native";
 import { useAuthStore } from "../../lib/store";
 import { apiClient, Subscription } from "../../lib/api";
 import { colors, fonts, radius } from "../../lib/colors";
@@ -23,11 +23,14 @@ function Row({ label, value }: { label: string; value: string }) {
 export default function Profile() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const updateRiskAppetite = useAuthStore((s) => s.updateRiskAppetite);
+  const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
 
   const [savingRisk, setSavingRisk] = useState(false);
   const [riskError, setRiskError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(true);
@@ -58,6 +61,12 @@ export default function Profile() {
     } finally {
       setSavingRisk(false);
     }
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await logout();
+    router.replace("/login");
   };
 
   if (isLoading) {
@@ -94,17 +103,29 @@ export default function Profile() {
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>RISK APPETITE</Text>
-        <View style={{ marginTop: 12 }}>
-          <RiskAppetitePicker
-            value={user.default_risk_appetite}
-            onChange={handleRiskChange}
-            disabled={savingRisk}
-          />
-        </View>
-        {riskError && <Text style={styles.errorText}>{riskError}</Text>}
-        <Text style={styles.hint}>
-          Your default risk appetite shapes which recommendations and season stakes we suggest.
-        </Text>
+        {hasActiveSubscription === false ? (
+          <View style={styles.lockedRow}>
+            <Lock size={14} color={colors.inkFaint} />
+            <Text style={styles.lockedText}>Subscribe to set your risk appetite.</Text>
+            <Pressable onPress={() => router.push("/pricing")}>
+              <Text style={styles.lockedLink}>View plans</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <View style={{ marginTop: 12 }}>
+              <RiskAppetitePicker
+                value={user.default_risk_appetite}
+                onChange={handleRiskChange}
+                disabled={savingRisk}
+              />
+            </View>
+            {riskError && <Text style={styles.errorText}>{riskError}</Text>}
+            <Text style={styles.hint}>
+              Your default risk appetite shapes which recommendations and season stakes we suggest.
+            </Text>
+          </>
+        )}
       </View>
 
       <View style={styles.card}>
@@ -140,6 +161,20 @@ export default function Profile() {
             </Pressable>
           </>
         )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>SETTINGS</Text>
+        <Pressable
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          disabled={loggingOut}
+        >
+          <LogOut size={15} color={colors.riskHigh} />
+          <Text style={styles.logoutButtonText}>
+            {loggingOut ? "Logging out…" : "Log out"}
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -222,6 +257,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     lineHeight: 16,
   },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  lockedText: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkMuted,
+  },
+  lockedLink: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 12,
+    color: colors.ticker,
+  },
   errorText: {
     fontFamily: fonts.body,
     fontSize: 12,
@@ -257,5 +309,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemibold,
     fontSize: 13,
     color: colors.inkMuted,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.riskHigh + "4D",
+    borderRadius: radius.stub,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  logoutButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 13,
+    color: colors.riskHigh,
   },
 });
