@@ -212,6 +212,18 @@ export interface Tipster {
   rank_order: number;
 }
 
+export type NotificationType = "subscription_expiring_monthly" | "subscription_expiring_seasonal";
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+}
+
 const ACCESS_KEY = "betwise_access_token";
 const REFRESH_KEY = "betwise_refresh_token";
 
@@ -345,6 +357,22 @@ class APIClient {
 
   deleteAccount(password: string) {
     return this.client.post<{ detail: string }>("/auth/me/delete/", { password });
+  }
+
+  getNotifications() {
+    return this.client.get<{ results: Notification[] } | Notification[]>("/auth/notifications/");
+  }
+
+  getUnreadNotificationCount() {
+    return this.client.get<{ count: number }>("/auth/notifications/unread-count/");
+  }
+
+  markNotificationRead(id: string) {
+    return this.client.post<Notification>("/auth/notifications/" + id + "/read/");
+  }
+
+  markAllNotificationsRead() {
+    return this.client.post<{ detail: string }>("/auth/notifications/mark-all-read/");
   }
 
   getUpcomingMatches() {

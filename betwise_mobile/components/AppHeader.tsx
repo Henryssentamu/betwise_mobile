@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "expo-router";
 import { User } from "lucide-react-native";
 import { useAuthStore } from "../lib/store";
 import { colors, fonts } from "../lib/colors";
+import NotificationBell from "./NotificationBell";
 
 // No auth/route-hiding check here on purpose — this component only ever
 // mounts inside app/(app)/_layout.tsx, which itself only renders once
@@ -29,22 +30,25 @@ export default function AppHeader() {
       <Text style={styles.logo}>
         Bet<Text style={{ color: colors.ticker }}>Wise</Text>
       </Text>
-      <Pressable
-        style={styles.profileRow}
-        onPress={() =>
-          pathname === "/profile" ? router.replace(lastTabRef.current) : router.push("/profile")
-        }
-        hitSlop={10}
-      >
-        {user && (
-          <Text style={styles.username} numberOfLines={1}>
-            {user.username}
-          </Text>
-        )}
-        <View style={styles.avatar}>
-          <User size={15} color={colors.inkPaper} />
-        </View>
-      </Pressable>
+      <View style={styles.rightRow}>
+        <NotificationBell />
+        <Pressable
+          style={styles.profileRow}
+          onPress={() =>
+            pathname === "/profile" ? router.replace(lastTabRef.current) : router.push("/profile")
+          }
+          hitSlop={10}
+        >
+          {user && (
+            <Text style={styles.username} numberOfLines={1}>
+              {user.username}
+            </Text>
+          )}
+          <View style={styles.avatar}>
+            <User size={15} color={colors.inkPaper} />
+          </View>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -65,6 +69,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 20,
     color: colors.inkPaper,
+  },
+  rightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
   },
   profileRow: {
     flexDirection: "row",
