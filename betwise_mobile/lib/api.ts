@@ -343,6 +343,10 @@ class APIClient {
     return this.client.patch<UserProfile>("/auth/me/", payload);
   }
 
+  deleteAccount(password: string) {
+    return this.client.post<{ detail: string }>("/auth/me/delete/", { password });
+  }
+
   getUpcomingMatches() {
     return this.client.get<{ results: Match[] } | Match[]>("/matches/upcoming/");
   }

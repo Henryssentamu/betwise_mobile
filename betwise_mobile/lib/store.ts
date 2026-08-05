@@ -12,6 +12,7 @@ interface AuthState {
   login: (payload: LoginPayload) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateRiskAppetite: (tier: "low" | "medium" | "high") => Promise<void>;
 }
@@ -80,6 +81,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    await apiClient.clearTokens();
+    set({ user: null, isAuthenticated: false, hasActiveSubscription: null });
+  },
+
+  deleteAccount: async (password) => {
+    await apiClient.deleteAccount(password);
     await apiClient.clearTokens();
     set({ user: null, isAuthenticated: false, hasActiveSubscription: null });
   },

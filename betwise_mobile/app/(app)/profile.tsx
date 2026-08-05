@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { BadgeCheck, ChevronRight, Lock, LogOut } from "lucide-react-native";
+import { BadgeCheck, ChevronRight, Lock, LogOut, Trash2 } from "lucide-react-native";
 import { useAuthStore } from "../../lib/store";
 import { apiClient, Subscription } from "../../lib/api";
 import { colors, fonts, radius } from "../../lib/colors";
@@ -26,11 +26,17 @@ export default function Profile() {
   const hasActiveSubscription = useAuthStore((s) => s.hasActiveSubscription);
   const updateRiskAppetite = useAuthStore((s) => s.updateRiskAppetite);
   const logout = useAuthStore((s) => s.logout);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const router = useRouter();
 
   const [savingRisk, setSavingRisk] = useState(false);
   const [riskError, setRiskError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loadingSubscription, setLoadingSubscription] = useState(true);
@@ -67,6 +73,26 @@ export default function Profile() {
     setLoggingOut(true);
     await logout();
     router.replace("/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      setDeleteError("Enter your password to confirm.");
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAccount(deletePassword);
+      router.replace("/login");
+    } catch (err: any) {
+      setDeleteError(
+        err?.response?.data?.password?.[0] ||
+          friendlyErrorMessage(err, "Couldn't delete your account.")
+      );
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -175,6 +201,54 @@ export default function Profile() {
             {loggingOut ? "Logging out…" : "Log out"}
           </Text>
         </Pressable>
+
+        {!showDeleteConfirm ? (
+          <Pressable
+            style={styles.deleteButton}
+            onPress={() => setShowDeleteConfirm(true)}
+          >
+            <Trash2 size={15} color={colors.riskHigh} />
+            <Text style={styles.logoutButtonText}>Delete account</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.deleteConfirmBox}>
+            <Text style={styles.deleteConfirmText}>
+              This deactivates your account and cancels any active subscription — you won't be able to log in
+              again. Your data is kept for our records but you'll lose access. This can't be undone from the app.
+            </Text>
+            <TextInput
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              placeholder="Enter your password to confirm"
+              placeholderTextColor={colors.inkFaint}
+              secureTextEntry
+              style={styles.deletePasswordInput}
+            />
+            {deleteError && <Text style={styles.errorText}>{deleteError}</Text>}
+            <View style={styles.deleteActionsRow}>
+              <Pressable
+                style={styles.deleteCancelButton}
+                onPress={() => {
+                  setShowDeleteConfirm(false);
+                  setDeletePassword("");
+                  setDeleteError(null);
+                }}
+                disabled={deleting}
+              >
+                <Text style={styles.deleteCancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deleteConfirmButton, deleting && { opacity: 0.6 }]}
+                onPress={handleDeleteAccount}
+                disabled={deleting}
+              >
+                <Text style={styles.deleteConfirmButtonText}>
+                  {deleting ? "Deleting…" : "Delete my account"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -325,5 +399,72 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemibold,
     fontSize: 13,
     color: colors.riskHigh,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.riskHigh + "4D",
+    borderRadius: radius.stub,
+    paddingVertical: 12,
+    marginTop: 10,
+  },
+  deleteConfirmBox: {
+    backgroundColor: colors.riskHigh + "0D",
+    borderWidth: 1,
+    borderColor: colors.riskHigh + "4D",
+    borderRadius: radius.stub,
+    padding: 14,
+    marginTop: 10,
+  },
+  deleteConfirmText: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkMuted,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  deletePasswordInput: {
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkPaper,
+    marginBottom: 10,
+  },
+  deleteActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  deleteCancelButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: radius.stub,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  deleteCancelButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 13,
+    color: colors.inkMuted,
+  },
+  deleteConfirmButton: {
+    flex: 1,
+    backgroundColor: colors.riskHigh,
+    borderRadius: radius.stub,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  deleteConfirmButtonText: {
+    fontFamily: fonts.bodySemibold,
+    fontSize: 13,
+    color: colors.bg,
   },
 });
